@@ -1,21 +1,36 @@
 // api/submit.js
-const ALLOWED_ORIGIN = "https://qa.quikreteqaplantvisit.com";
 
-function setCorsHeaders(res) {
-  res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
+// Allow both prod + QA domains (and optional localhost for testing)
+const ALLOWED_ORIGINS = [
+  "https://quikreteqaplantvisit.com",
+  "https://qa.quikreteqaplantvisit.com",
+  "http://localhost:3000", // optional – remove if you don't want it
+];
+
+function setCorsHeaders(req, res) {
+  const origin = req.headers.origin;
+
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+
+  // Ensure caches treat each origin separately
+  res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 }
 
 export default async function handler(req, res) {
-  setCorsHeaders(res);
+  setCorsHeaders(req, res);
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
 
   if (req.method !== "POST") {
-    return res.status(405).json({ status: "error", message: "Method not allowed" });
+    return res
+      .status(405)
+      .json({ status: "error", message: "Method not allowed" });
   }
 
   const appsScriptUrl = process.env.APPS_SCRIPT_URL;
