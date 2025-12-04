@@ -14,7 +14,6 @@ function setCorsHeaders(req, res) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   }
 
-  // Ensure caches treat each origin separately
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -48,18 +47,29 @@ export default async function handler(req, res) {
     });
 
     const text = await response.text();
+    const ok = response.ok;
     let json;
+
     try {
       json = JSON.parse(text);
     } catch {
       json = { raw: text };
     }
 
-    return res.status(response.status).json(json);
+    // Ensure we always send a status field back to the browser
+    if (!json || typeof json !== "object") {
+      json = { data: json };
+    }
+    if (!("status" in json)) {
+      json.status = ok ? "success" : "error";
+    }
+
+    return res.status(ok ? 200 : 500).json(json);
   } catch (err) {
     console.error(err);
-    return res
-      .status(500)
-      .json({ status: "error", message: "Proxy error: " + err.message });
+    return res.status(500).json({
+      status: "error",
+      message: "Proxy error: " + err.message,
+    });
   }
 }
