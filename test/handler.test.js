@@ -139,6 +139,15 @@ test("both modes: a non-object body is refused, never forwarded", async () => {
   }
 });
 
+test("logs the form's client-side Turnstile failure reason and strips it before forwarding", async () => {
+  const { handler, appsCalls, logs } = setup();
+  const body = goodPayload({ cf_turnstile_error: "error:110200" });
+  delete body.cf_turnstile_token;
+  await handler(fakeReq("POST", body), fakeRes());
+  assert.ok(logs.info.some((m) => /client=.*error:110200/.test(m)), logs.info.join("\n"));
+  assert.equal("cf_turnstile_error" in appsCalls()[0].body, false);
+});
+
 test("never 500s on a plant value that cannot be stringified", async () => {
   const { handler, appsCalls } = setup();
   const res = fakeRes();
