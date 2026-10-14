@@ -38,7 +38,7 @@ function fakeRes() {
   return res;
 }
 
-function setup({ env = {}, turnstile = { success: true, hostname: "quikreteqaplantvisit.com" }, apps = { status: 200, body: { status: "ok", version: "v4.2" } } } = {}) {
+function setup({ env = {}, turnstile = { success: true, hostname: "quikreteqaplantvisit.com", action: "qa_submit" }, apps = { status: 200, body: { status: "ok", version: "v4.2" } } } = {}) {
   const calls = [];
   const logs = { info: [], warn: [] };
   const handler = createHandler({
@@ -113,12 +113,38 @@ test("enforcement off: still forwards an invalid body but logs that it would be 
   assert.ok(logs.warn.some((m) => /would reject/i.test(m) && /report/i.test(m)), logs.warn.join("\n"));
 });
 
-test("enforcement off: never forwards client passthrough or form_secret even unenforced", async () => {
+test("enforcement off: a client form_secret is stripped before forwarding", async () => {
   const { handler, appsCalls } = setup();
-  await handler(fakeReq("POST", goodPayload({ passthrough: true, form_secret: "guess" })), fakeRes());
-  const forwarded = appsCalls()[0].body;
-  assert.equal("passthrough" in forwarded, false);
-  assert.equal(forwarded.form_secret, undefined);
+  await handler(fakeReq("POST", goodPayload({ form_secret: "guess" })), fakeRes());
+  assert.equal(appsCalls()[0].body.form_secret, undefined);
+});
+
+test("both modes: a passthrough body is refused, never forwarded (stripping it would make a junk visit)", async () => {
+  for (const env of [{}, { TURNSTILE_ENFORCE: "1", TURNSTILE_SECRET: "ts" }]) {
+    const { handler, appsCalls } = setup({ env });
+    const res = fakeRes();
+    await handler(fakeReq("POST", { passthrough: true, secret: "x", to: ["a@b.c"], subject: "s", htmlBody: "<p>" }), res);
+    assert.equal(res.statusCode, 400);
+    assert.equal(appsCalls().length, 0);
+  }
+});
+
+test("both modes: a non-object body is refused, never forwarded", async () => {
+  for (const body of ["text", 42, [1, 2], undefined]) {
+    const { handler, appsCalls } = setup();
+    const res = fakeRes();
+    await handler(fakeReq("POST", body), res);
+    assert.equal(res.statusCode, 400, `body ${JSON.stringify(body)}`);
+    assert.equal(appsCalls().length, 0);
+  }
+});
+
+test("never 500s on a plant value that cannot be stringified", async () => {
+  const { handler, appsCalls } = setup();
+  const res = fakeRes();
+  await handler(fakeReq("POST", goodPayload({ plant: { toString: 1, valueOf: 2 } })), res);
+  assert.equal(res.statusCode, 200, JSON.stringify(res.payload));
+  assert.equal(appsCalls().length, 1);
 });
 
 test("enforcement on: schema failure returns its status and message, nothing forwarded", async () => {

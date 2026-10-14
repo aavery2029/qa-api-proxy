@@ -12,8 +12,14 @@ it and forwards it to the Apps Script `/exec` URL.
 | Cloudflare Turnstile token (`cf_turnstile_token`), verified with siteverify, hostname must be ours | `lib/turnstile.js` | 403 |
 | Shared secret injected server-side as `form_secret` so the Apps Script can fail closed | `lib/handler.js` | n/a |
 
-Client-supplied `passthrough`, `form_secret` and the Turnstile token are never
-forwarded.
+A client-supplied `form_secret` and the Turnstile token are never forwarded.
+Two things are refused in BOTH modes because forwarding them in any shape would
+create a junk visit: a body that is not a JSON object, and a body carrying
+`passthrough` (the old Apps Script email relay; nothing calls it).
+
+Siteverify is given 5 seconds; a hung Cloudflare counts as unreachable so a
+stalled upstream never stalls the form. The token's widget `action` must be
+`qa_submit`, the value the form sets.
 
 ## Environment variables (Vercel project settings)
 

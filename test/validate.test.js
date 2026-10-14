@@ -108,6 +108,12 @@ test("rejects unknown top-level keys whose value is not a short string", () => {
   assert.equal(validatePayload(goodPayload({ anything_else: "fine" })).ok, true);
 });
 
+test("rejects a body nested too deeply instead of throwing", () => {
+  let nest = [];
+  for (let i = 0; i < 200000; i++) nest = [nest];
+  reject(goodPayload({ nest }), 400, /nested/i);
+});
+
 test("rejects an oversized Turnstile token", () => {
   reject(goodPayload({ cf_turnstile_token: "t".repeat(2049) }), 400, /turnstile/i);
 });

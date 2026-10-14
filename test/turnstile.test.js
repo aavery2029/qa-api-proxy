@@ -58,6 +58,28 @@ test("fails with hostname-mismatch when the token was solved on another site", a
   assert.equal(r.reason, "hostname-mismatch");
 });
 
+test("gives up on a hung siteverify after the timeout as siteverify-unreachable", async () => {
+  // Hangs forever unless an abort signal fires, like a stalled upstream.
+  const hung = (url, init) => new Promise((_, reject) => {
+    if (init.signal) init.signal.addEventListener("abort", () => reject(new Error("aborted")));
+  });
+  const r = await Promise.race([
+    verifyTurnstile("tok", { secret: "sec", fetchImpl: hung, allowedHostnames: HOSTS, timeoutMs: 50 }),
+    new Promise((resolve) => setTimeout(() => resolve({ ok: false, reason: "test-gave-up-waiting" }), 1500)),
+  ]);
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, "siteverify-unreachable");
+});
+
+test("fails with action-mismatch when the token was issued for another widget action", async () => {
+  const r = await verifyTurnstile("tok", {
+    secret: "sec", allowedHostnames: HOSTS, expectedAction: "qa_submit",
+    fetchImpl: fakeFetch({ success: true, hostname: "quikreteqaplantvisit.com", action: "login" }),
+  });
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, "action-mismatch");
+});
+
 test("fails with siteverify-unreachable when the call throws", async () => {
   const r = await verifyTurnstile("tok", {
     secret: "sec", fetchImpl: fakeFetch(new Error("ECONNRESET")), allowedHostnames: HOSTS,
