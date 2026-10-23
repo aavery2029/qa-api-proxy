@@ -117,3 +117,24 @@ test("rejects a body nested too deeply instead of throwing", () => {
 test("rejects an oversized Turnstile token", () => {
   reject(goodPayload({ cf_turnstile_token: "t".repeat(2049) }), 400, /turnstile/i);
 });
+
+test("a long photo file name is shortened (extension kept), never a rejection", () => {
+  const long = "Screenshot from the batch panel at plant 692 Greenspoint taken during the visit on 2026-10-23 (1).jpeg";
+  const body = goodPayload();
+  body.images = [{ name: long, data: PNG_1x1, section: "operations", section_title: "Operations", caption: "" }];
+  const v = validatePayload(body);
+  assert.equal(v.ok, true, v.message);
+  assert.equal(body.images[0].name.length, 80);
+  assert.ok(body.images[0].name.endsWith(".jpeg"));
+  assert.ok(body.images[0].name.startsWith("Screenshot from the batch panel"));
+});
+
+test("short photo names are untouched; a name that is not text is still refused", () => {
+  const body = goodPayload();
+  body.images = [{ name: "IMG_1234.jpg", data: PNG_1x1, section: "", section_title: "", caption: "" }];
+  assert.equal(validatePayload(body).ok, true);
+  assert.equal(body.images[0].name, "IMG_1234.jpg");
+  const bad = goodPayload();
+  bad.images = [{ name: 42, data: PNG_1x1, section: "", section_title: "", caption: "" }];
+  reject(bad, 400, /name must be a string/);
+});

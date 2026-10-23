@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHandler } from "../lib/handler.js";
 import { SITEVERIFY_URL } from "../lib/turnstile.js";
-import { goodPayload } from "./fixtures.js";
+import { goodPayload, PNG_1x1 } from "./fixtures.js";
 
 const APPS = "https://script.google.com/macros/s/TEST/exec";
 const ORIGIN = "https://quikreteqaplantvisit.com";
@@ -219,4 +219,17 @@ test("passes Apps Script errors and non-JSON replies through like the original p
   await html.handler(fakeReq("POST", goodPayload()), res2);
   assert.equal(res2.statusCode, 200);
   assert.deepEqual(res2.payload, { raw: "<html>login</html>", status: "success" });
+});
+
+test("enforcement on: a photo with a long file name goes through, Apps Script gets the shortened name", async () => {
+  const { handler, appsCalls } = setup({ env: { TURNSTILE_ENFORCE: "1", TURNSTILE_SECRET: "ts", FORM_SECRET: "fs" } });
+  const body = goodPayload();
+  body.images = [{ name: "x".repeat(120) + ".jpg", data: PNG_1x1, section: "operations", section_title: "Operations", caption: "" }];
+  const res = fakeRes();
+  await handler(fakeReq("POST", body), res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(appsCalls().length, 1);
+  const sent = appsCalls()[0].body.images[0].name;
+  assert.equal(sent.length, 80);
+  assert.ok(sent.endsWith(".jpg"));
 });
